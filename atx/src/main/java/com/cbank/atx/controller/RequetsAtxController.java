@@ -1,4 +1,5 @@
 package com.cbank.atx.controller;
+import java.util.Map;
 
 import com.cbank.atx.domain.request.RequetsAtx;
 import com.cbank.atx.enums.RequestStatus;
@@ -130,4 +131,72 @@ public class RequetsAtxController {
         return ResponseEntity.ok(
                 requetsAtxService.close(id));
     }
+    // DELETE /api/requests/{id} → supprimer une demande
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(
+            @PathVariable String id) {
+        requetsAtxService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+    // ─────────────────────────────────────────
+// PUT /api/requests/{id}/fill-params?lang=fr
+// → Remplit les paramètres d'une demande
+// → Body contient les valeurs manuelles
+// ─────────────────────────────────────────
+    @PutMapping("/{id}/fill-params")
+    public ResponseEntity<RequetsAtx> fillParams(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "fr") String lang,
+            @RequestBody Map<String, String> manualValues) {
+        return ResponseEntity.ok(
+                requetsAtxService.fillParams(
+                        id, lang, manualValues));
+    }
+    // ─────────────────────────────────────────
+// POST /api/requests/{id}/execute-param
+// → Exécute la requête SQL pour UN param
+// → Appelé quand BO clique "Exécuter"
+//
+// Postman envoie :
+// {
+//   "paramName": "Nom du client"
+// }
+// ─────────────────────────────────────────
+    @PostMapping("/{id}/execute-param")
+    public ResponseEntity<Map<String, String>>
+    executeParam(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(
+                requetsAtxService.executeParam(
+                        id,
+                        body.get("paramName")
+                ));
+    }
+
+    // ─────────────────────────────────────────
+// POST /api/requests/{id}/save-param
+// → Sauvegarde une valeur manuelle
+// → Appelé quand BO saisit manuellement
+//
+// Postman envoie :
+// {
+//   "paramName": "Date de référence",
+//   "value": "18/03/2026"
+// }
+// ─────────────────────────────────────────
+    @PostMapping("/{id}/save-param")
+    public ResponseEntity<RequetsAtx> saveParam(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(
+                requetsAtxService.saveParam(
+                        id,
+                        body.get("paramName"),
+                        body.get("value")
+                ));
+    }
+
+
+
 }

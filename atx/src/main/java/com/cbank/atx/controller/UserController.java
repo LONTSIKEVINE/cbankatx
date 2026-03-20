@@ -112,4 +112,12 @@ public class UserController {
             @PathVariable String id) {
         return ResponseEntity.ok(userService.deactivate(id));
     }
+
+    // DELETE /api/users/{id} → supprimer un utilisateur
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(
+            @PathVariable String id) {
+        userService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 }

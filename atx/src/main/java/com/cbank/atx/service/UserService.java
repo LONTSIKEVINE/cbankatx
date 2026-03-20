@@ -3,6 +3,7 @@ package com.cbank.atx.service;
 import com.cbank.atx.domain.user.User;
 import com.cbank.atx.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -11,75 +12,115 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    // Créer un utilisateur
+    // ─────────────────────────────────────────
+    // CRÉER un utilisateur
+    // ─────────────────────────────────────────
     public User create(User user) {
+
         // Règle 1 : email doit être unique
-        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+        if (userRepository.findByEmail(
+                user.getEmail()).isPresent()) {
             throw new RuntimeException(
-                    "Un utilisateur avec l'email "
-                            + user.getEmail()
-                            + " existe déjà !"
-            );
+                    "Email déjà utilisé : "
+                            + user.getEmail());
         }
-        // Règle 2 : nouvel utilisateur toujours actif
+
+        // Règle 2 : hasher le mot de passe
+        if (user.getPassword() != null) {
+            user.setPassword(
+                    passwordEncoder.encode(
+                            user.getPassword()));
+        }
+
+        // Règle 3 : actif par défaut
         user.setActive(true);
+
         return userRepository.save(user);
     }
 
-    // Lister tous les utilisateurs
+    // ─────────────────────────────────────────
+    // LIRE tous les utilisateurs
+    // ─────────────────────────────────────────
     public List<User> getAll() {
         return userRepository.findAll();
     }
 
-    // Trouver un utilisateur par ID
+    // ─────────────────────────────────────────
+    // LIRE un utilisateur par ID
+    // ─────────────────────────────────────────
     public User getById(String id) {
         return userRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Utilisateur non trouvé : " + id));
+                        new RuntimeException(
+                                "Utilisateur non trouvé : "
+                                        + id));
     }
 
-    // Lister les utilisateurs d'une agence
-    public List<User> getByBranch(String branchId) {
-        return userRepository.findByBranchId(branchId);
+    // ─────────────────────────────────────────
+    // LIRE les utilisateurs d'une agence
+    // ─────────────────────────────────────────
+    public List<User> getByBranch(
+            String branchId) {
+        return userRepository
+                .findByBranchId(branchId);
     }
 
-    // Lister tous les utilisateurs actifs
+    // ─────────────────────────────────────────
+    // LIRE tous les utilisateurs actifs
+    // ─────────────────────────────────────────
     public List<User> getAllActive() {
         return userRepository.findByActiveTrue();
     }
 
-    // Modifier un utilisateur
+    // ─────────────────────────────────────────
+    // MODIFIER un utilisateur
+    // ─────────────────────────────────────────
     public User update(String id, User newData) {
         User existing = getById(id);
-        existing.setFirstname(newData.getFirstname());
-        existing.setLastname(newData.getLastname());
+        existing.setFirstname(
+                newData.getFirstname());
+        existing.setLastname(
+                newData.getLastname());
         existing.setEmail(newData.getEmail());
-        existing.setBranchId(newData.getBranchId());
-        existing.setProfilId(newData.getProfilId());
-        existing.setBackupId(newData.getBackupId());
+        existing.setBranchId(
+                newData.getBranchId());
+        existing.setProfilId(
+                newData.getProfilId());
+        existing.setBackupId(
+                newData.getBackupId());
         return userRepository.save(existing);
     }
 
-    // Activer un compte
+    // ─────────────────────────────────────────
+    // ACTIVER un compte
+    // ─────────────────────────────────────────
     public User activate(String id) {
         User user = getById(id);
         user.setActive(true);
         return userRepository.save(user);
     }
 
-    // Désactiver un compte
+    // ─────────────────────────────────────────
+    // DÉSACTIVER un compte
+    // ─────────────────────────────────────────
     public User deactivate(String id) {
         User user = getById(id);
-        // Règle : on ne peut pas désactiver
-        // si pas de backup configuré
         if (user.getBackupId() == null) {
             throw new RuntimeException(
                     "Impossible de désactiver : "
-                            + "aucun utilisateur backup configuré !"
-            );
+                            + "backup non configuré !");
         }
         user.setActive(false);
         return userRepository.save(user);
+    }
+
+    // ─────────────────────────────────────────
+    // SUPPRIMER un utilisateur
+    // ─────────────────────────────────────────
+    public void delete(String id) {
+        getById(id);
+        userRepository.deleteById(id);
     }
 }

@@ -8,27 +8,22 @@ import java.util.List;
 import java.util.Map;
 
 @Data
-@Document(collection = "users")       // → collection "users" dans MongoDB
+@Document(collection = "users")
 public class User {
 
     @Id
     private String id;
-
-    private String firstname;          // prénom de l'agent
-    private String lastname;           // nom de l'agent
-    private String email;              // email professionnel
-
-    private String branchId;           // référence → collection "branchs"
-    private String profilId;           // référence → collection "profils"
-    private String backupId;           // référence → un autre User (remplaçant)
-    private String atxId;              // référence → collection "atxs"
-
-    private Map<String, String> function; // fonctions spéciales de l'agent
-
-    private Session session;           // ← session imbriquée directement
-
+    private String firstname;
+    private String lastname;
+    private String email;
+    private String password; // ← simple, sans annotation
+    private String branchId;
+    private String profilId;
+    private String backupId;
+    private String atxId;
+    private Map<String, String> function;
+    private Session session;
     private List<RequestAssignment> assignments
-            = new ArrayList<>();       // ← historique des assignations imbriqué
-
-    private Boolean active;            // compte actif ou désactivé
+            = new ArrayList<>();
+    private Boolean active;
 }
