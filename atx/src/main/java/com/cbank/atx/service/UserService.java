@@ -1,6 +1,8 @@
 package com.cbank.atx.service;
 
 import com.cbank.atx.domain.user.User;
+import com.cbank.atx.exception.BusinessException;
+import com.cbank.atx.exception.ResourceNotFoundException;
 import com.cbank.atx.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -13,6 +15,8 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationService
+            notificationService;
 
     // ─────────────────────────────────────────
     // CRÉER un utilisateur
@@ -22,7 +26,7 @@ public class UserService {
         // Règle 1 : email doit être unique
         if (userRepository.findByEmail(
                 user.getEmail()).isPresent()) {
-            throw new RuntimeException(
+            throw new BusinessException(
                     "Email déjà utilisé : "
                             + user.getEmail());
         }
@@ -53,7 +57,7 @@ public class UserService {
     public User getById(String id) {
         return userRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Utilisateur non trouvé : "
                                         + id));
     }
@@ -102,18 +106,36 @@ public class UserService {
         return userRepository.save(user);
     }
 
+
     // ─────────────────────────────────────────
     // DÉSACTIVER un compte
     // ─────────────────────────────────────────
+    // ─────────────────────────────────────────
+// DÉSACTIVER un compte
+// ─────────────────────────────────────────
     public User deactivate(String id) {
         User user = getById(id);
+
+        // Vérifie que le backup est configuré
         if (user.getBackupId() == null) {
-            throw new RuntimeException(
+            throw new BusinessException(
                     "Impossible de désactiver : "
                             + "backup non configuré !");
         }
+
+        // Désactive le compte
         user.setActive(false);
-        return userRepository.save(user);
+
+        // Sauvegarde dans MongoDB
+        User saved = userRepository.save(user);
+
+        // ✅ Notifie l'utilisateur désactivé
+        notificationService
+                .notifyAccountDeactivated(
+                        user.getEmail()
+                );
+
+        return saved;
     }
 
     // ─────────────────────────────────────────

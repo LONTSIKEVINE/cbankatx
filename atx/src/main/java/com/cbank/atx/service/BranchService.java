@@ -1,6 +1,8 @@
 package com.cbank.atx.service;
 
 import com.cbank.atx.domain.branch.Branch;
+import com.cbank.atx.exception.BusinessException;
+import com.cbank.atx.exception.ResourceNotFoundException;
 import com.cbank.atx.repository.BranchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -10,51 +12,86 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BranchService {
 
-    private final BranchRepository branchRepository;
+    // Repository qui parle à MongoDB
+    // collection "branchs"
+    private final BranchRepository
+            branchRepository;
 
-    // Créer une agence
+    // ─────────────────────────────────────────
+    // CRÉER une agence
+    // Règle métier : le code doit être unique
+    // Ex: on ne peut pas avoir 2 agences
+    //     avec le code "AG-001"
+    // ─────────────────────────────────────────
     public Branch create(Branch branch) {
-        // Règle métier : le code agence doit être unique
-        if (branchRepository.existsByCode(branch.getCode())) {
-            throw new RuntimeException(
+
+        // Vérifie si le code agence
+        // existe déjà dans MongoDB
+        if (branchRepository.existsByCode(
+                branch.getCode())) {
+
+            // ❌ Code déjà utilisé
+            // → erreur métier → 400
+            throw new BusinessException(
                     "Une agence avec le code "
                             + branch.getCode()
-                            + " existe déjà !"
-            );
+                            + " existe déjà !");
         }
+
+        // ✅ Code unique → sauvegarde
         return branchRepository.save(branch);
     }
 
-    // Lister toutes les agences
+    // ─────────────────────────────────────────
+    // LIRE toutes les agences
+    // ─────────────────────────────────────────
     public List<Branch> getAll() {
         return branchRepository.findAll();
     }
 
-    // Trouver une agence par ID
+    // ─────────────────────────────────────────
+    // LIRE une agence par ID
+    // → Si non trouvée → 404
+    // ─────────────────────────────────────────
     public Branch getById(String id) {
         return branchRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Agence non trouvée : " + id));
+                        new ResourceNotFoundException(
+                                "Agence non trouvée : "
+                                        + id));
     }
 
-    // Lister les agences d'une ville
-    public List<Branch> getByCity(String cityId) {
-        return branchRepository.findByCityId(cityId);
+    // ─────────────────────────────────────────
+    // LIRE les agences d'une ville
+    // → Filtre par cityId
+    // ─────────────────────────────────────────
+    public List<Branch> getByCity(
+            String cityId) {
+        return branchRepository
+                .findByCityId(cityId);
     }
 
-    // Modifier une agence
-    public Branch update(String id, Branch newData) {
+    // ─────────────────────────────────────────
+    // MODIFIER une agence
+    // ─────────────────────────────────────────
+    public Branch update(
+            String id, Branch newData) {
         Branch existing = getById(id);
         existing.setLabel(newData.getLabel());
         existing.setCode(newData.getCode());
-        existing.setTaxesAccount(newData.getTaxesAccount());
-        existing.setProductsAccount(newData.getProductsAccount());
-        existing.setManagerId(newData.getManagerId());
+        existing.setTaxesAccount(
+                newData.getTaxesAccount());
+        existing.setProductsAccount(
+                newData.getProductsAccount());
+        existing.setManagerId(
+                newData.getManagerId());
         existing.setCityId(newData.getCityId());
         return branchRepository.save(existing);
     }
 
-    // Supprimer une agence
+    // ─────────────────────────────────────────
+    // SUPPRIMER une agence
+    // ─────────────────────────────────────────
     public void delete(String id) {
         getById(id);
         branchRepository.deleteById(id);

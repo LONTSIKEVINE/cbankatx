@@ -60,7 +60,8 @@ public class SecurityConfig {
                                 "/api/branchs/**",
                                 "/api/cities/**",
                                 "/api/settings/**",
-                                "/api/profils/**"
+                                "/api/profils/**",
+                                "/api/stats/global"
                         ).hasAuthority("ROLE_BO_ADMIN")
 
                         // 🔐 BO_ADMIN et BO_METIER
@@ -69,7 +70,9 @@ public class SecurityConfig {
                                 "/api/requests/**",
                                 "/api/atxs/**",
                                 "/api/documents/**",
-                                "/api/files/**"
+                                "/api/files/**",
+                                "/api/stats/requests",  // ← ajoute
+                                "/api/stats/agent/**"   // ← ajoute
                         ).hasAnyAuthority(
                                 "ROLE_BO_ADMIN",
                                 "ROLE_BO_METIER")

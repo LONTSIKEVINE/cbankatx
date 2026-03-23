@@ -1,4 +1,3 @@
-
 package com.cbank.atx.service;
 
 import com.cbank.atx.domain.atx.Atx;
@@ -6,16 +5,14 @@ import com.cbank.atx.domain.atx.LocaleAtx;
 import com.cbank.atx.domain.atx.Param;
 import com.cbank.atx.domain.request.ParamValue;
 import com.cbank.atx.domain.request.RequetsAtx;
+import com.cbank.atx.exception.ResourceNotFoundException;
 import com.cbank.atx.repository.AtxRepository;
 import com.cbank.atx.repository.RequetsAtxRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.springframework.stereotype.Service;
-import java.io.*;
-        import java.util.HashMap;
-import java.util.List;
+import org.springframework.web.client.RestTemplate;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -27,8 +24,11 @@ public class DocxService {
     private final AtxRepository atxRepository;
 
     // ─────────────────────────────────────────
-    // GÉNÉRER le document Docx
-    // pour une demande donnée
+    // GÉNÉRER le document Word
+    // → Charge la demande et l'attestation
+    // → Construit les données du template
+    // → Appelle Node.js /generate
+    // → Retourne le fichier en bytes
     // ─────────────────────────────────────────
     public byte[] generateDocument(
             String requestId,
@@ -38,7 +38,7 @@ public class DocxService {
         RequetsAtx request = requetsAtxRepository
                 .findById(requestId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Demande non trouvée : "
                                         + requestId));
 
@@ -46,45 +46,51 @@ public class DocxService {
         Atx atx = atxRepository
                 .findById(request.getAtxId())
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Attestation non trouvée !"));
 
         // Étape 3 : récupérer la locale
-        LocaleAtx locale = atx.getLocales().get(lang);
+        LocaleAtx locale = atx.getLocales()
+                .get(lang);
         if (locale == null) {
             locale = atx.getLocales().get("fr");
         }
 
-        // Étape 4 : construire la Map des variables
-        // {{NOM_CLIENT}} → "Jean Dupont"
-        Map<String, String> variables =
-                buildVariablesMap(
-                        request,
-                        locale
-                );
+        // Étape 4 : construire les données
+        // pour Docxtemplater
+        // → Map de toutes les variables
+        //   du template avec leurs valeurs
+        Map<String, Object> data =
+                buildTemplateData(
+                        request, locale);
 
-        // Étape 5 : charger et remplir le template
-        return fillTemplate(
+        // Étape 5 : appeler Node.js
+        // pour générer le document
+        return callNodeJsGenerate(
                 locale.getTemplateUrl(),
-                variables
+                data
         );
     }
 
     // ─────────────────────────────────────────
-    // CONSTRUIRE la Map des variables
+    // CONSTRUIRE les données du template
+    // → Pour chaque param de l'attestation
+    //   cherche sa valeur dans paramsValues
+    // → Construit la Map data pour
+    //   Docxtemplater
     // ─────────────────────────────────────────
-    private Map<String, String> buildVariablesMap(
+    private Map<String, Object> buildTemplateData(
             RequetsAtx request,
             LocaleAtx locale) {
 
-        Map<String, String> variables =
-                new HashMap<>();
+        Map<String, Object> data = new HashMap<>();
 
         // Pour chaque param de l'attestation
         for (Param param : locale.getParams()) {
 
-            // Chercher la valeur dans paramsValues
-            String value = request.getParamsValues()
+            // Cherche la valeur dans paramsValues
+            String value = request
+                    .getParamsValues()
                     .stream()
                     .filter(pv -> pv.getParamId()
                             .equals(param.getName()))
@@ -92,120 +98,95 @@ public class DocxService {
                     .findFirst()
                     .orElse("");
 
-            // Ajouter dans la Map :
-            // "{{NOM_CLIENT}}" → "Jean Dupont"
-            variables.put(
-                    param.getRawTemplateVariable(),
-                    value
-            );
+            // Extrait le nom de la variable
+            // sans les {{ }}
+            // Ex: "{{NOM_CLIENT}}" → "NOM_CLIENT"
+            String varName = param.getName()
+                    .replace("{{", "")
+                    .replace("}}", "")
+                    .trim();
+
+            data.put(varName, value);
         }
 
-        return variables;
+        // Ajoute des données système
+        data.put("REQUEST_ID",
+                request.getId());
+        data.put("CUSTOMER",
+                request.getCustomer());
+        data.put("ACCOUNT_NUMBER",
+                request.getAccountNumber());
+
+        return data;
     }
 
     // ─────────────────────────────────────────
-    // REMPLIR le template avec les variables
+    // APPELER Node.js /generate
+    // → Envoie le nom du template
+    //   et les données
+    // → Reçoit le document en base64
+    // → Décode et retourne en bytes
     // ─────────────────────────────────────────
-    private byte[] fillTemplate(
+    private byte[] callNodeJsGenerate(
             String templateUrl,
-            Map<String, String> variables)
+            Map<String, Object> data)
             throws Exception {
 
-        // Charger le template depuis le dossier
-        // resources/templates/
-        InputStream templateStream =
-                getClass().getResourceAsStream(
-                        "/templates/"
-                                + templateUrl.replace(
-                                "/templates/", "")
-                );
+        try {
+            RestTemplate restTemplate =
+                    new RestTemplate();
 
-        // Si le template n'existe pas →
-        // créer un document simple
-        if (templateStream == null) {
-            return createSimpleDocument(variables);
-        }
-
-        // Ouvrir le document Word
-        XWPFDocument document =
-                new XWPFDocument(templateStream);
-
-        // Remplacer les variables dans chaque
-        // paragraphe du document
-        for (XWPFParagraph paragraph
-                : document.getParagraphs()) {
-            replaceParagraph(paragraph, variables);
-        }
-
-        // Convertir en bytes
-        ByteArrayOutputStream outputStream =
-                new ByteArrayOutputStream();
-        document.write(outputStream);
-        document.close();
-
-        return outputStream.toByteArray();
-    }
-
-    // ─────────────────────────────────────────
-    // REMPLACER les variables dans un paragraphe
-    // ─────────────────────────────────────────
-    private void replaceParagraph(
-            XWPFParagraph paragraph,
-            Map<String, String> variables) {
-
-        for (XWPFRun run : paragraph.getRuns()) {
-            String text = run.getText(0);
-            if (text != null) {
-                // Remplacer chaque variable
-                for (Map.Entry<String, String>
-                        entry : variables.entrySet()) {
-                    text = text.replace(
-                            entry.getKey(),
-                            entry.getValue()
-                    );
-                }
-                run.setText(text, 0);
+            // Nom du fichier template
+            String templateName = templateUrl;
+            if (templateName == null
+                    || templateName.isEmpty()) {
+                templateName = "solde-fr.docx";
             }
+
+            // Construit le body
+            Map<String, Object> body =
+                    new HashMap<>();
+            body.put("templateName", templateName);
+            body.put("data", data);
+
+            System.out.println(
+                    "📤 Appel Node.js /generate"
+                            + " avec template : "
+                            + templateName);
+
+            // Appelle Node.js
+            Map response = restTemplate
+                    .postForObject(
+                            "http://localhost:3008/generate",
+                            body,
+                            Map.class
+                    );
+
+            if (response != null
+                    && response
+                    .containsKey("document")) {
+
+                // Décode le base64
+                String base64 = (String) response
+                        .get("document");
+
+                System.out.println(
+                        "✅ Document reçu de Node.js !");
+
+                return Base64.getDecoder()
+                        .decode(base64);
+            }
+
+            throw new RuntimeException(
+                    "Réponse invalide de Node.js !");
+
+        } catch (Exception e) {
+            System.out.println(
+                    "⚠️ Node.js non disponible : "
+                            + e.getMessage());
+            throw new RuntimeException(
+                    "Erreur génération document : "
+                            + e.getMessage());
         }
-    }
-
-    // ─────────────────────────────────────────
-    // CRÉER un document simple si pas de template
-    // ─────────────────────────────────────────
-    private byte[] createSimpleDocument(
-            Map<String, String> variables)
-            throws Exception {
-
-        XWPFDocument document = new XWPFDocument();
-
-        // Titre
-        XWPFParagraph title =
-                document.createParagraph();
-        XWPFRun titleRun = title.createRun();
-        titleRun.setText("ATTESTATION BANCAIRE");
-        titleRun.setBold(true);
-        titleRun.setFontSize(16);
-
-        // Contenu — une ligne par variable
-        for (Map.Entry<String, String>
-                entry : variables.entrySet()) {
-            XWPFParagraph para =
-                    document.createParagraph();
-            XWPFRun run = para.createRun();
-            run.setText(
-                    entry.getKey()
-                            .replace("{{", "")
-                            .replace("}}", "")
-                            + " : "
-                            + entry.getValue()
-            );
-        }
-
-        ByteArrayOutputStream outputStream =
-                new ByteArrayOutputStream();
-        document.write(outputStream);
-        document.close();
-
-        return outputStream.toByteArray();
     }
 }
