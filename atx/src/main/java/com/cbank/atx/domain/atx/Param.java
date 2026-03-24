@@ -6,9 +6,10 @@ import lombok.Data;
 
 @Data
 public class Param {
+    private String paramId;
     private String name;
     private ParamType type;
     private DataSource dataSource;
     private String dataSourceValue;
-    private String rawTemplateVariable;
+    private String TemplateVariable;
 }
