@@ -76,6 +76,14 @@ public class SecurityConfig {
                         ).hasAnyAuthority(
                                 "ROLE_BO_ADMIN",
                                 "ROLE_BO_METIER")
+                                // ← Ajoute ceci séparément
+// pour que BO_METIER puisse aussi
+// changer son mot de passe
+                                .requestMatchers(
+                                        "/api/users/*/change-password"
+                                ).hasAnyAuthority(
+                                        "ROLE_BO_ADMIN",
+                                        "ROLE_BO_METIER")
 
                         // Tout le reste → authentifié
                         .anyRequest().authenticated()

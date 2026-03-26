@@ -15,31 +15,65 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final NotificationService
-            notificationService;
+    private final NotificationService notificationService;
 
     // ─────────────────────────────────────────
     // CRÉER un utilisateur
     // ─────────────────────────────────────────
     public User create(User user) {
-
-        // Règle 1 : email doit être unique
-        if (userRepository.findByEmail(
-                user.getEmail()).isPresent()) {
+        // Email unique
+        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
             throw new BusinessException(
-                    "Email déjà utilisé : "
-                            + user.getEmail());
+                    "Email déjà utilisé : " + user.getEmail());
         }
 
-        // Règle 2 : hasher le mot de passe
+        // Sauvegarde mot de passe clair
+        String plainPassword = user.getPassword();
+
+        // Hash du mot de passe
         if (user.getPassword() != null) {
-            user.setPassword(
-                    passwordEncoder.encode(
-                            user.getPassword()));
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
 
-        // Règle 3 : actif par défaut
+        // Actif par défaut
         user.setActive(true);
+
+        User saved = userRepository.save(user);
+
+        // Envoi email credentials
+        notificationService.notifyUserInvitation(
+                saved.getEmail(),
+                saved.getFirstname(),
+                saved.getLastname(),
+                plainPassword
+        );
+
+        return saved;
+    }
+
+    // ─────────────────────────────────────────
+    // CHANGER le mot de passe
+    // ─────────────────────────────────────────
+    public User changePassword(
+            String id,
+            String oldPassword,
+            String newPassword) {
+
+        User user = getById(id);
+
+        // Vérifie ancien mot de passe
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new BusinessException("Ancien mot de passe incorrect !");
+        }
+
+        // Vérifie nouveau ≠ ancien
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new BusinessException(
+                    "Le nouveau mot de passe doit être différent de l'ancien !");
+        }
+
+        // Hash et sauvegarde
+        user.setPassword(passwordEncoder.encode(newPassword));
 
         return userRepository.save(user);
     }
@@ -58,17 +92,14 @@ public class UserService {
         return userRepository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Utilisateur non trouvé : "
-                                        + id));
+                                "Utilisateur non trouvé : " + id));
     }
 
     // ─────────────────────────────────────────
     // LIRE les utilisateurs d'une agence
     // ─────────────────────────────────────────
-    public List<User> getByBranch(
-            String branchId) {
-        return userRepository
-                .findByBranchId(branchId);
+    public List<User> getByBranch(String branchId) {
+        return userRepository.findByBranchId(branchId);
     }
 
     // ─────────────────────────────────────────
@@ -83,17 +114,12 @@ public class UserService {
     // ─────────────────────────────────────────
     public User update(String id, User newData) {
         User existing = getById(id);
-        existing.setFirstname(
-                newData.getFirstname());
-        existing.setLastname(
-                newData.getLastname());
+        existing.setFirstname(newData.getFirstname());
+        existing.setLastname(newData.getLastname());
         existing.setEmail(newData.getEmail());
-        existing.setBranchId(
-                newData.getBranchId());
-        existing.setProfilId(
-                newData.getProfilId());
-        existing.setBackupId(
-                newData.getBackupId());
+        existing.setBranchId(newData.getBranchId());
+        existing.setProfilId(newData.getProfilId());
+        existing.setBackupId(newData.getBackupId());
         return userRepository.save(existing);
     }
 
@@ -106,34 +132,22 @@ public class UserService {
         return userRepository.save(user);
     }
 
-
     // ─────────────────────────────────────────
     // DÉSACTIVER un compte
     // ─────────────────────────────────────────
-    // ─────────────────────────────────────────
-// DÉSACTIVER un compte
-// ─────────────────────────────────────────
     public User deactivate(String id) {
         User user = getById(id);
 
-        // Vérifie que le backup est configuré
         if (user.getBackupId() == null) {
             throw new BusinessException(
-                    "Impossible de désactiver : "
-                            + "backup non configuré !");
+                    "Impossible de désactiver : backup non configuré !");
         }
 
-        // Désactive le compte
         user.setActive(false);
-
-        // Sauvegarde dans MongoDB
         User saved = userRepository.save(user);
 
-        // ✅ Notifie l'utilisateur désactivé
-        notificationService
-                .notifyAccountDeactivated(
-                        user.getEmail()
-                );
+        // Notifie utilisateur désactivé
+        notificationService.notifyAccountDeactivated(user.getEmail());
 
         return saved;
     }

@@ -25,9 +25,12 @@ public class NotificationService {
             message.setTo(to);
             message.setSubject(subject);
             message.setText(body);
+
             mailSender.send(message);
+
             System.out.println(
                     "✅ Email envoyé à : " + to);
+
         } catch (Exception e) {
             System.out.println(
                     "⚠️ Erreur envoi email : "
@@ -37,9 +40,6 @@ public class NotificationService {
 
     // ─────────────────────────────────────────
     // NOTIFIER — Demande assignée
-    // → Appelé quand BO assigne une demande
-    // → Notifie l'agent et/ou le client
-    //   selon la config dans Settings
     // ─────────────────────────────────────────
     public void notifyRequestAssignment(
             String agentEmail,
@@ -52,19 +52,17 @@ public class NotificationService {
                     .getRequestAssignment()
                     .getBackOffice();
 
-            // Notifie l'agent si configuré
             if (notifyBO) {
                 sendEmail(
                         agentEmail,
                         "CBank ATX - Nouvelle demande assignée",
                         "Bonjour,\n\n"
-                                + "Une nouvelle demande vous "
-                                + "a été assignée.\n"
+                                + "Une nouvelle demande vous a été assignée.\n"
                                 + "ID Demande : " + requestId
-                                + "\n\nCordialement,\n"
-                                + "CBank ATX"
+                                + "\n\nCordialement,\nCBank ATX"
                 );
             }
+
         } catch (Exception e) {
             System.out.println(
                     "⚠️ Notification non envoyée : "
@@ -73,9 +71,7 @@ public class NotificationService {
     }
 
     // ─────────────────────────────────────────
-    // NOTIFIER — Demande traitée
-    // → Appelé quand la demande est livrée
-    // → Notifie le client et/ou le BO
+    // NOTIFIER — Demande livrée
     // ─────────────────────────────────────────
     public void notifyRequestDelivered(
             String clientEmail,
@@ -88,19 +84,17 @@ public class NotificationService {
                             .getRequestEndProcessing()
                             .getCustomer();
 
-            // Notifie le client si configuré
-            if (notifyCustomer
-                    && clientEmail != null) {
+            if (notifyCustomer && clientEmail != null) {
                 sendEmail(
                         clientEmail,
                         "CBank ATX - Attestation disponible",
                         "Bonjour,\n\n"
                                 + "Votre attestation est prête.\n"
                                 + "ID Demande : " + requestId
-                                + "\n\nCordialement,\n"
-                                + "CBank ATX"
+                                + "\n\nCordialement,\nCBank ATX"
                 );
             }
+
         } catch (Exception e) {
             System.out.println(
                     "⚠️ Notification non envoyée : "
@@ -110,7 +104,6 @@ public class NotificationService {
 
     // ─────────────────────────────────────────
     // NOTIFIER — Compte désactivé
-    // → Appelé quand un compte est désactivé
     // ─────────────────────────────────────────
     public void notifyAccountDeactivated(
             String userEmail) {
@@ -129,10 +122,10 @@ public class NotificationService {
                         "Bonjour,\n\n"
                                 + "Votre compte a été désactivé.\n"
                                 + "Contactez votre administrateur.\n\n"
-                                + "Cordialement,\n"
-                                + "CBank ATX"
+                                + "Cordialement,\nCBank ATX"
                 );
             }
+
         } catch (Exception e) {
             System.out.println(
                     "⚠️ Notification non envoyée : "
@@ -141,15 +134,16 @@ public class NotificationService {
     }
 
     // ─────────────────────────────────────────
-    // NOTIFIER — Invitation utilisateur
-    // → Appelé quand un nouveau user est créé
-    // → Envoie ses credentials par email
+    // NOTIFIER — Invitation utilisateur (UPDATED 🔥)
     // ─────────────────────────────────────────
     public void notifyUserInvitation(
-            String userEmail,
+            String email,
+            String firstname,
+            String lastname,
             String password) {
 
         try {
+
             boolean notifyBO = settingsService
                     .get()
                     .getNotifications()
@@ -157,20 +151,25 @@ public class NotificationService {
                     .getBackOffice();
 
             if (notifyBO) {
+
                 sendEmail(
-                        userEmail,
-                        "CBank ATX - Invitation",
-                        "Bonjour,\n\n"
-                                + "Votre compte CBank ATX "
-                                + "a été créé.\n\n"
-                                + "Email    : " + userEmail
-                                + "\nMot de passe : " + password
-                                + "\n\nConnectez-vous sur :\n"
+                        email,
+                        "CBank ATX - Bienvenue !",
+                        "Bonjour " + firstname + " " + lastname + ",\n\n"
+                                + "Votre compte CBank ATX a été créé avec succès.\n\n"
+                                + "Vos identifiants :\n"
+                                + "Email       : " + email + "\n"
+                                + "Mot de passe: " + password + "\n\n"
+                                + "⚠️ Pensez à changer votre mot de passe après votre première connexion.\n\n"
+                                + "Connectez-vous sur :\n"
                                 + "http://cbank-atx.cm\n\n"
-                                + "Cordialement,\n"
-                                + "CBank ATX"
+                                + "Cordialement,\nCBank ATX"
                 );
+
+                System.out.println(
+                        "✅ Email invitation envoyé à : " + email);
             }
+
         } catch (Exception e) {
             System.out.println(
                     "⚠️ Notification non envoyée : "
@@ -180,7 +179,6 @@ public class NotificationService {
 
     // ─────────────────────────────────────────
     // NOTIFIER — Transfert CFT échoué
-    // → Appelé quand le transfert CFT échoue
     // ─────────────────────────────────────────
     public void notifyCftTransferFailed(
             String adminEmail,
@@ -198,15 +196,13 @@ public class NotificationService {
                         adminEmail,
                         "CBank ATX - ⚠️ Transfert CFT échoué",
                         "Bonjour,\n\n"
-                                + "Le transfert CFT a échoué "
-                                + "pour la demande :\n"
+                                + "Le transfert CFT a échoué pour la demande :\n"
                                 + "ID : " + requestId
-                                + "\n\nVeuillez vérifier "
-                                + "la connexion CFT.\n\n"
-                                + "Cordialement,\n"
-                                + "CBank ATX"
+                                + "\n\nVeuillez vérifier la connexion CFT.\n\n"
+                                + "Cordialement,\nCBank ATX"
                 );
             }
+
         } catch (Exception e) {
             System.out.println(
                     "⚠️ Notification non envoyée : "

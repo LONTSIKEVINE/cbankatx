@@ -5,8 +5,10 @@ import com.cbank.atx.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.cbank.atx.exception.BusinessException;
+import java.util.HashMap;
 import java.util.List;
-
+import java.util.Map;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -35,6 +37,51 @@ public class UserController {
             @RequestBody User user) {
         return ResponseEntity.ok(userService.create(user));
     }
+
+
+
+    // ─────────────────────────────────────────
+// PUT /api/users/{id}/change-password
+// → Permet à l'utilisateur de changer
+//   son mot de passe
+// ─────────────────────────────────────────
+    @PutMapping("/{id}/change-password")
+    public ResponseEntity<Map<String, String>>
+    changePassword(
+            @PathVariable String id,
+            @RequestBody
+            Map<String, String> body) {
+
+        String oldPassword =
+                body.get("oldPassword");
+        String newPassword =
+                body.get("newPassword");
+
+        // Vérifie que les 2 champs sont présents
+        if (oldPassword == null
+                || newPassword == null) {
+            throw new BusinessException(
+                    "oldPassword et newPassword "
+                            + "sont requis !");
+        }
+
+        userService.changePassword(
+                id, oldPassword, newPassword);
+
+        Map<String, String> response =
+                new HashMap<>();
+        response.put("message",
+                "Mot de passe modifié avec succès !");
+
+        return ResponseEntity.ok(response);
+    }
+
+
+
+
+
+
+
 
     // ─────────────────────────────────────────────────
     // GET /api/users
